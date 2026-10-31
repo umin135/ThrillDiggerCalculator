@@ -1,0 +1,19 @@
+{
+  "name": "skydigger",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "젤다의 전설 스카이워드 소드 HD — 두근두근 루피찾기 확률 계산기",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  }
+}

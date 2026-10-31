@@ -1,0 +1,825 @@
+:root {
+  --bg: #f4eee2;
+  --surface: #fffaf1;
+  --ink: #2a2119;
+  --muted: #7b6b59;
+  --line: #e0d3bd;
+  --hole: #d8c6a6;
+  --dug: #fbf4e6;
+  --accent: #b5532b;
+  --accent-ink: #fff;
+  --good: #2e8b4f;
+  --warn: #b7791f;
+  --bad: #c0392b;
+  --heat-s: 58%;
+  --heat-l: 84%;
+  --shadow: 0 1px 0 rgb(0 0 0 / 0.04), 0 6px 18px rgb(80 50 20 / 0.08);
+  --bomb: #2b2f38;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15120f;
+    --surface: #1f1a15;
+    --ink: #f2e9dc;
+    --muted: #a99886;
+    --line: #382e25;
+    --hole: #3a2f26;
+    --dug: #2a231c;
+    --accent: #e0814f;
+    --accent-ink: #1a120c;
+    --good: #5cc283;
+    --warn: #e0a84a;
+    --bad: #ff7a6b;
+    --heat-s: 38%;
+    --heat-l: 27%;
+    --shadow: 0 1px 0 rgb(0 0 0 / 0.3), 0 8px 22px rgb(0 0 0 / 0.35);
+    --bomb: #5a6070;
+    color-scheme: dark;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family:
+    'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  word-break: keep-all;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.page {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 20px 16px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ---------- 머리말 ---------- */
+
+.masthead {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+.masthead h1 {
+  margin: 0;
+  font-size: 26px;
+  letter-spacing: -0.02em;
+}
+
+.tagline {
+  margin: 0;
+  color: var(--muted);
+}
+
+/* ---------- 난이도 ---------- */
+
+.levels {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.levels button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  text-align: left;
+  min-width: 0;
+}
+
+.levels button[aria-pressed='true'] {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.lv-name {
+  font-weight: 700;
+}
+
+.lv-meta {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+/* ---------- 요약 ---------- */
+
+.summary {
+  min-height: 44px;
+}
+
+.chips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.chips li {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+
+.chips span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.chips strong {
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.banner {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-weight: 600;
+}
+
+.banner svg {
+  width: 22px;
+  height: 22px;
+  flex: none;
+}
+
+.banner-bad {
+  background: color-mix(in srgb, var(--bad) 16%, var(--surface));
+  color: var(--bad);
+}
+
+.banner-warn {
+  background: color-mix(in srgb, var(--warn) 18%, var(--surface));
+  color: var(--warn);
+}
+
+.banner-good {
+  background: color-mix(in srgb, var(--good) 16%, var(--surface));
+  color: var(--good);
+}
+
+.note {
+  margin: 0;
+  color: var(--muted);
+}
+
+/* ---------- 게임판 ---------- */
+
+.board-wrap {
+  padding: 10px;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+}
+
+.board {
+  container: board / inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: opacity 0.15s;
+}
+
+.board.stale {
+  opacity: 0.6;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: repeat(var(--cols), 1fr);
+  gap: 6px;
+}
+
+.cell {
+  --risk: 0;
+  position: relative;
+  aspect-ratio: 1 / 0.92;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: var(--hole);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  font-size: clamp(11px, calc(100cqi / var(--cols) * 0.24), 19px);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  transition:
+    background-color 0.2s,
+    transform 0.1s;
+}
+
+.cell:active {
+  transform: scale(0.96);
+}
+
+.cell[data-kind='unknown'] {
+  background: hsl(calc(140 - 140 * var(--risk)) var(--heat-s) var(--heat-l));
+  box-shadow: inset 0 -3px 0 rgb(0 0 0 / 0.08);
+}
+
+.cell[data-kind='unknown'][data-sure='safe'] {
+  background: color-mix(in srgb, var(--good) 45%, var(--surface));
+  color: #fff;
+}
+
+.cell[data-kind='unknown'][data-sure='bad'] {
+  background: repeating-linear-gradient(
+    -45deg,
+    color-mix(in srgb, var(--bad) 30%, var(--surface)) 0 6px,
+    color-mix(in srgb, var(--bad) 18%, var(--surface)) 6px 12px
+  );
+}
+
+.cell[data-kind='rupee'],
+.cell[data-kind='rupoor'],
+.cell[data-kind='bomb'] {
+  background: var(--dug);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.cell[data-kind='bomb'] {
+  background: color-mix(in srgb, var(--bad) 22%, var(--dug));
+}
+
+.cell-main {
+  font-weight: 800;
+}
+
+.cell-sub {
+  font-size: 0.66em;
+  opacity: 0.75;
+}
+
+.cell-q {
+  font-size: 1.2em;
+  opacity: 0.35;
+}
+
+.cell-val {
+  font-size: 0.66em;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.cell .gem,
+.cell .bomb {
+  width: 42%;
+  height: auto;
+}
+
+.cell.best {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+  z-index: 1;
+}
+
+.cell.flagged {
+  outline: 3px dashed var(--bad);
+  outline-offset: 2px;
+  animation: shake 0.35s;
+}
+
+.badge {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.badge-inline {
+  display: inline-block;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 12px;
+  font-weight: 700;
+  vertical-align: 1px;
+}
+
+@container board (width < 440px) {
+  .board[data-level='expert'] .cell-sub {
+    display: none;
+  }
+}
+
+@container board (width < 330px) {
+  .board[data-level='intermediate'] .cell-sub {
+    display: none;
+  }
+}
+
+@keyframes shake {
+  25% {
+    transform: translateX(-3px);
+  }
+  75% {
+    transform: translateX(3px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cell,
+  .board {
+    transition: none;
+  }
+  .cell.flagged {
+    animation: none;
+  }
+}
+
+/* ---------- 루피 아이콘 ---------- */
+
+.gem {
+  width: 18px;
+  height: 18px;
+  vertical-align: -4px;
+}
+
+.gem-body {
+  fill: var(--gem);
+}
+
+.gem-face {
+  fill: var(--gem-hi);
+  opacity: 0.6;
+}
+
+.gem-shine {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  opacity: 0.85;
+}
+
+.gem-green {
+  --gem: #2e9e53;
+  --gem-hi: #7fe39a;
+}
+.gem-blue {
+  --gem: #2563d6;
+  --gem-hi: #8ab8ff;
+}
+.gem-red {
+  --gem: #cc2f2b;
+  --gem-hi: #ff9a8a;
+}
+.gem-silver {
+  --gem: #95a1ae;
+  --gem-hi: #f1f5f9;
+}
+.gem-gold {
+  --gem: #d09516;
+  --gem-hi: #ffe38f;
+}
+.gem-rupoor {
+  --gem: #3b2150;
+  --gem-hi: #9a6cc0;
+}
+
+.bomb {
+  width: 18px;
+  height: 18px;
+  vertical-align: -4px;
+}
+
+.bomb-body {
+  fill: var(--bomb);
+}
+
+.bomb-shine {
+  fill: #fff;
+  opacity: 0.35;
+}
+
+.bomb-fuse {
+  stroke: #9b7a55;
+  stroke-width: 2;
+  stroke-linecap: round;
+  fill: none;
+}
+
+.bomb-spark {
+  stroke: #ff9f1a;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  fill: none;
+}
+
+/* ---------- 추천 / 도구 / 손익 ---------- */
+
+.advice {
+  min-height: 24px;
+}
+
+.advice p {
+  margin: 0;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.seg {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+
+.seg button {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+}
+
+.seg button[aria-checked='true'] {
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
+}
+
+.actions button {
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.actions .danger {
+  border-color: color-mix(in srgb, var(--bad) 50%, var(--line));
+  color: var(--bad);
+}
+
+.money {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.money strong {
+  color: var(--ink);
+}
+
+.money .pos strong {
+  color: var(--good);
+}
+
+.money .neg strong {
+  color: var(--bad);
+}
+
+/* ---------- 도움말 ---------- */
+
+.help {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+.help summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.help h3 {
+  font-size: 15px;
+  margin: 16px 0 4px;
+}
+
+.help p,
+.help ol {
+  margin: 8px 0;
+}
+
+.help ol {
+  padding-left: 20px;
+}
+
+kbd {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 0 4px;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--surface);
+  font: 12px/1.5 ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  text-align: center;
+}
+
+.legend {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0;
+  font-size: 14px;
+}
+
+.legend th,
+.legend td {
+  padding: 5px 6px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+
+.legend th {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.foot {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* ---------- 입력 시트 ---------- */
+
+.sheet {
+  width: min(100%, 520px);
+  max-width: 100%;
+  margin: auto auto 0;
+  padding: 0;
+  border: none;
+  border-radius: 18px 18px 0 0;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 -10px 40px rgb(0 0 0 / 0.25);
+}
+
+.sheet::backdrop {
+  background: rgb(20 12 4 / 0.45);
+}
+
+@media (min-width: 640px) {
+  .sheet {
+    margin: auto;
+    border-radius: 18px;
+  }
+}
+
+.sheet-inner {
+  padding: 14px 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sheet-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.sheet-head h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.icon-btn {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 50%;
+  background: var(--bg);
+}
+
+.odds-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.odds-grid div {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--bg);
+}
+
+.odds-grid span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.odds-grid strong {
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.dist {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.dist li {
+  display: grid;
+  grid-template-columns: 7.5em 1fr 4em;
+  align-items: center;
+  gap: 8px;
+}
+
+.dist-name {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.dist-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.dist-bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 4px;
+}
+
+.dist-p {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.picks {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.pick {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+  min-width: 0;
+}
+
+.pick .gem,
+.pick .bomb {
+  width: 26px;
+  height: 26px;
+}
+
+.pick.current {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.pick-label {
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.pick-sub {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.pick kbd {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 1.3em;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+@media (hover: none) {
+  .pick kbd {
+    display: none;
+  }
+}
+
+.hole-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--hole);
+  box-shadow: inset 0 3px 0 rgb(0 0 0 / 0.15);
+}
+
+@media (max-width: 420px) {
+  .chips {
+    gap: 6px;
+  }
+  .chips li {
+    padding: 5px 7px;
+  }
+  .chips span {
+    font-size: 11px;
+    line-height: 1.3;
+  }
+  .chips strong {
+    font-size: 16px;
+  }
+  .levels button {
+    padding: 8px;
+  }
+  .lv-meta {
+    font-size: 11px;
+  }
+  .seg button,
+  .actions button {
+    padding: 6px 10px;
+  }
+  .toolbar {
+    flex-direction: column;
+  }
+  .seg {
+    align-self: stretch;
+  }
+  .seg button {
+    flex: 1;
+  }
+  .actions button {
+    flex: 1;
+  }
+}

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="젤다의 전설 스카이워드 소드 HD 미니게임 두근두근 루피찾기의 폭탄 확률 계산기" />
+    <meta name="color-scheme" content="light dark" />
+    <title>SkyDigger · 두근두근 루피찾기 확률 계산기</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="masthead">
+        <h1>SkyDigger</h1>
+        <p class="tagline">두근두근 루피찾기 확률 계산기</p>
+      </header>
+
+      <nav class="levels" id="levels" aria-label="난이도"></nav>
+
+      <section class="summary" id="summary" aria-live="polite"></section>
+
+      <main class="board-wrap">
+        <div class="board" id="board" role="grid" aria-label="게임판"></div>
+      </main>
+
+      <section class="advice" id="advice" aria-live="polite"></section>
+
+      <section class="toolbar">
+        <div class="seg" id="mode" role="radiogroup" aria-label="추천 기준">
+          <button type="button" role="radio" data-mode="safe">안전 우선</button>
+          <button type="button" role="radio" data-mode="value">기대값 우선</button>
+        </div>
+        <div class="actions">
+          <button type="button" id="undo" title="되돌리기 (Ctrl+Z)">되돌리기</button>
+          <button type="button" id="redo" title="다시하기 (Ctrl+Y)">다시하기</button>
+          <button type="button" id="clear" class="danger" title="판 비우기">새 게임</button>
+        </div>
+      </section>
+
+      <section class="money" id="money"></section>
+
+      <details class="help">
+        <summary>사용 방법</summary>
+        <ol>
+          <li>게임에서 고른 난이도를 위에서 선택합니다.</li>
+          <li>게임에서 칸을 파면, 여기서도 같은 칸을 눌러 나온 루피를 입력합니다.</li>
+          <li>칸마다 <strong>폭탄이 나올 확률</strong>이 표시되고, 가장 좋은 칸에 <span class="badge-inline">추천</span> 표시가 붙습니다.</li>
+        </ol>
+        <p>키보드: 방향키로 칸 이동, <kbd>Enter</kbd> 입력창, <kbd>1</kbd>–<kbd>5</kbd> 루피, <kbd>R</kbd> 도둑루피, <kbd>B</kbd> 폭탄, <kbd>0</kbd>/<kbd>Del</kbd> 지우기, <kbd>Ctrl</kbd>+<kbd>Z</kbd> 되돌리기.</p>
+        <table class="legend" id="legend"></table>
+        <h3>계산 방식</h3>
+        <p>
+          단서와 모순되지 않는 꽝(폭탄·도둑루피) 배치를 모두 세어서 정확한 확률을 구합니다. 근사나 표본 추출은 쓰지 않습니다.
+          꽝은 판 전체에 고르게 무작위로 배치된다고 가정합니다.
+        </p>
+        <p>
+          <strong>기대값</strong>은 그 칸 하나를 팠을 때 얻는 루피의 평균입니다(도둑루피 −10 포함).
+          폭탄으로 게임이 끝나서 잃는 이후 수익은 넣지 않았으니, 위험한 칸은 안전 우선 추천을 따르는 편이 낫습니다.
+        </p>
+      </details>
+
+      <footer class="foot">
+        비공식 팬 도구입니다. 젤다의 전설 및 스카이워드 소드는 Nintendo의 상표입니다.
+      </footer>
+    </div>
+
+    <dialog class="sheet" id="sheet" aria-labelledby="sheet-title">
+      <form method="dialog" class="sheet-inner">
+        <header class="sheet-head">
+          <h2 id="sheet-title"></h2>
+          <button value="close" class="icon-btn" aria-label="닫기">✕</button>
+        </header>
+        <div class="sheet-odds" id="sheet-odds"></div>
+        <div class="picks" id="picks"></div>
+      </form>
+    </dialog>
+
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>
