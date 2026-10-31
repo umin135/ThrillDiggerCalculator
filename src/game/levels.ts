@@ -34,8 +34,8 @@ export const RUPEES: RupeeInfo[] = [
   { color: 'green', name: '녹색 루피', value: 1, min: 0, max: 0, key: '1' },
   { color: 'blue', name: '파란 루피', value: 5, min: 1, max: 2, key: '2' },
   { color: 'red', name: '붉은 루피', value: 20, min: 3, max: 4, key: '3' },
-  { color: 'silver', name: '은색 루피', value: 100, min: 5, max: 6, key: '4' },
-  { color: 'gold', name: '금색 루피', value: 300, min: 7, max: 8, key: '5' },
+  { color: 'silver', name: '실버 루피', value: 100, min: 5, max: 6, key: '4' },
+  { color: 'gold', name: '골드 루피', value: 300, min: 7, max: 8, key: '5' },
 ];
 
 export const RUPEE_BY_COLOR = Object.fromEntries(RUPEES.map((r) => [r.color, r])) as Record<

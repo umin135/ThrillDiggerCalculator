@@ -1,6 +1,17 @@
 import { type Cell, type LevelId, LEVELS, LEVEL_ORDER, RUPEES, emptyBoard } from './levels';
+import { type PlayGame, dig, isPlayGame, newGame } from './play';
 
 export type RecommendMode = 'safe' | 'value';
+export type AppMode = 'solve' | 'play';
+
+export interface PlayRecord {
+  games: number;
+  won: number;
+  lost: number;
+  net: number;
+}
+
+const emptyRecord = (): PlayRecord => ({ games: 0, won: 0, lost: 0, net: 0 });
 
 interface History {
   past: Cell[][];
@@ -12,6 +23,10 @@ interface Saved {
   level: LevelId;
   mode: RecommendMode;
   boards: Partial<Record<LevelId, Cell[]>>;
+  app?: AppMode;
+  hints?: boolean;
+  games?: Partial<Record<LevelId, PlayGame>>;
+  records?: Partial<Record<LevelId, PlayRecord>>;
 }
 
 const STORAGE_KEY = 'skydigger:v1';
@@ -21,6 +36,11 @@ export class Store {
   level: LevelId = 'beginner';
   mode: RecommendMode = 'safe';
   boards: Record<LevelId, Cell[]>;
+  app: AppMode = 'solve';
+  /** 연습 플레이에서 확률을 보여 줄지 */
+  hints = false;
+  games: Record<LevelId, PlayGame>;
+  records: Record<LevelId, PlayRecord>;
   /** 마지막으로 바꾼 칸 (모순 표시용) */
   lastChanged: number | null = null;
   private history: Record<LevelId, History>;
@@ -37,7 +57,58 @@ export class Store {
       intermediate: { past: [], future: [] },
       expert: { past: [], future: [] },
     };
+    this.games = {
+      beginner: newGame(LEVELS.beginner),
+      intermediate: newGame(LEVELS.intermediate),
+      expert: newGame(LEVELS.expert),
+    };
+    this.records = { beginner: emptyRecord(), intermediate: emptyRecord(), expert: emptyRecord() };
     this.load();
+  }
+
+  get game(): PlayGame {
+    return this.games[this.level];
+  }
+
+  get record(): PlayRecord {
+    return this.records[this.level];
+  }
+
+  setApp(app: AppMode): void {
+    if (app === this.app) return;
+    this.app = app;
+    this.emit();
+  }
+
+  setHints(on: boolean): void {
+    if (on === this.hints) return;
+    this.hints = on;
+    this.emit();
+  }
+
+  newPlay(): void {
+    this.games[this.level] = newGame(LEVELS[this.level]);
+    this.emit();
+  }
+
+  dig(index: number): void {
+    const before = this.game;
+    const after = dig(before, index);
+    if (after === before) return;
+    this.games[this.level] = after;
+    if (after.status !== 'playing') {
+      const r = this.record;
+      r.games++;
+      if (after.status === 'won') r.won++;
+      else r.lost++;
+      r.net += after.earned - LEVELS[this.level].fee;
+    }
+    this.emit();
+  }
+
+  resetRecord(): void {
+    this.records[this.level] = emptyRecord();
+    this.emit();
   }
 
   get board(): Cell[] {
@@ -118,7 +189,16 @@ export class Store {
   }
 
   private save(): void {
-    const data: Saved = { version: 1, level: this.level, mode: this.mode, boards: this.boards };
+    const data: Saved = {
+      version: 1,
+      level: this.level,
+      mode: this.mode,
+      boards: this.boards,
+      app: this.app,
+      hints: this.hints,
+      games: this.games,
+      records: this.records,
+    };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     } catch {
@@ -137,10 +217,16 @@ export class Store {
     if (!data || data.version !== 1) return;
     if (LEVEL_ORDER.includes(data.level)) this.level = data.level;
     if (data.mode === 'safe' || data.mode === 'value') this.mode = data.mode;
+    if (data.app === 'solve' || data.app === 'play') this.app = data.app;
+    if (typeof data.hints === 'boolean') this.hints = data.hints;
     for (const id of LEVEL_ORDER) {
       const b = data.boards?.[id];
       const size = LEVELS[id].width * LEVELS[id].height;
       if (Array.isArray(b) && b.length === size && b.every(isCell)) this.boards[id] = b;
+      const g = data.games?.[id];
+      if (isPlayGame(g) && g.level === id) this.games[id] = g;
+      const r = data.records?.[id];
+      if (r && [r.games, r.won, r.lost, r.net].every((n) => typeof n === 'number')) this.records[id] = r;
     }
   }
 }

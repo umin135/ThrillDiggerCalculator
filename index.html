@@ -16,6 +16,11 @@
         <p class="tagline">두근두근 루피찾기 확률 계산기</p>
       </header>
 
+      <div class="apptabs" id="app" role="tablist" aria-label="모드">
+        <button type="button" role="tab" data-app="solve">확률 계산</button>
+        <button type="button" role="tab" data-app="play">연습 플레이</button>
+      </div>
+
       <nav class="levels" id="levels" aria-label="난이도"></nav>
 
       <section class="summary" id="summary" aria-live="polite"></section>
@@ -31,22 +36,52 @@
           <button type="button" role="radio" data-mode="safe">안전 우선</button>
           <button type="button" role="radio" data-mode="value">기대값 우선</button>
         </div>
-        <div class="actions">
+        <div class="actions" id="solve-actions">
           <button type="button" id="undo" title="되돌리기 (Ctrl+Z)">되돌리기</button>
           <button type="button" id="redo" title="다시하기 (Ctrl+Y)">다시하기</button>
           <button type="button" id="clear" class="danger" title="판 비우기">새 게임</button>
+        </div>
+        <div class="actions" id="play-actions" hidden>
+          <button type="button" id="hints" aria-pressed="false">확률 보기</button>
+          <button type="button" id="auto-dig">추천 칸 파기</button>
+          <button type="button" id="new-play" class="danger">새 판</button>
         </div>
       </section>
 
       <section class="money" id="money"></section>
 
+      <section class="play-extra" id="play-extra" hidden>
+        <div class="record" id="record"></div>
+        <div class="sim">
+          <h3>자동 시뮬레이션</h3>
+          <p class="note">
+            추천 칸(폭탄 확률 최소, 동률이면 주변에 안 판 칸이 많은 칸)만 골라 파는 방식으로 여러 판을 자동으로 진행해서 승률과 평균 손익을 봅니다.
+          </p>
+          <div class="sim-controls">
+            <select id="sim-games" aria-label="판 수">
+              <option value="100">100판</option>
+              <option value="1000" selected>1,000판</option>
+              <option value="10000">10,000판</option>
+            </select>
+            <button type="button" id="sim-run">시작</button>
+          </div>
+          <div class="sim-result" id="sim-result" aria-live="polite"></div>
+        </div>
+      </section>
+
       <details class="help">
         <summary>사용 방법</summary>
+        <h3>확률 계산</h3>
         <ol>
           <li>게임에서 고른 난이도를 위에서 선택합니다.</li>
           <li>게임에서 칸을 파면, 여기서도 같은 칸을 눌러 나온 루피를 입력합니다.</li>
           <li>칸마다 <strong>폭탄이 나올 확률</strong>이 표시되고, 가장 좋은 칸에 <span class="badge-inline">추천</span> 표시가 붙습니다.</li>
         </ol>
+        <h3>연습 플레이</h3>
+        <p>
+          무작위로 만든 판에서 직접 파 보는 모드입니다. 칸을 누르면 바로 파지고, <strong>확률 보기</strong>를 켜면 계산기와 같은 확률과 추천이 표시됩니다.
+          판 결과는 난이도별 기록으로 쌓입니다.
+        </p>
         <p>키보드: 방향키로 칸 이동, <kbd>Enter</kbd> 입력창, <kbd>1</kbd>–<kbd>5</kbd> 루피, <kbd>R</kbd> 도둑루피, <kbd>B</kbd> 폭탄, <kbd>0</kbd>/<kbd>Del</kbd> 지우기, <kbd>Ctrl</kbd>+<kbd>Z</kbd> 되돌리기.</p>
         <table class="legend" id="legend"></table>
         <h3>계산 방식</h3>

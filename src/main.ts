@@ -7,9 +7,10 @@ import {
   RUPEE_BY_COLOR,
   RUPOOR_VALUE,
 } from './game/levels';
-import { type RecommendMode, Store } from './game/state';
+import { revealCell, visibleBoard } from './game/play';
+import { type AppMode, type RecommendMode, Store } from './game/state';
 import type { Analysis, CellOdds } from './solver/analyze';
-import { SolverClient } from './solver/client';
+import { SimulationClient, SolverClient } from './solver/client';
 import { pct, position, signed } from './ui/format';
 import { bombIcon, gemIcon } from './ui/icons';
 
@@ -21,24 +22,37 @@ let analysis: Analysis | null = null;
 let pending = true;
 let focusIndex = 0;
 let sheetIndex: number | null = null;
-let renderedLevel: LevelId | null = null;
+/** 판을 다시 만들어야 하는지 판단하는 키 (모드 + 난이도) */
+let renderedKey: string | null = null;
 
 const solver = new SolverClient((res) => {
   analysis = res.analysis;
   pending = false;
   render();
 });
+const simulation = new SimulationClient();
 
 const els = {
+  app: $('app'),
   levels: $('levels'),
   summary: $('summary'),
   board: $('board'),
   advice: $('advice'),
   mode: $('mode'),
+  solveActions: $('solve-actions'),
   undo: $<HTMLButtonElement>('undo'),
   redo: $<HTMLButtonElement>('redo'),
   clear: $<HTMLButtonElement>('clear'),
+  playActions: $('play-actions'),
+  hints: $<HTMLButtonElement>('hints'),
+  autoDig: $<HTMLButtonElement>('auto-dig'),
+  newPlay: $<HTMLButtonElement>('new-play'),
   money: $('money'),
+  playExtra: $('play-extra'),
+  record: $('record'),
+  simGames: $<HTMLSelectElement>('sim-games'),
+  simRun: $<HTMLButtonElement>('sim-run'),
+  simResult: $('sim-result'),
   legend: $('legend'),
   sheet: $<HTMLDialogElement>('sheet'),
   sheetTitle: $('sheet-title'),
@@ -46,7 +60,19 @@ const els = {
   picks: $('picks'),
 };
 
+const isPlay = () => store.app === 'play';
+
+/** 지금 화면에 보이는 판: 계산 모드는 입력한 판, 연습 모드는 지금까지 판 칸 */
+function currentBoard(): Cell[] {
+  return isPlay() ? visibleBoard(store.game) : store.board;
+}
+
 // ---------- 고정 UI ----------
+
+els.app.addEventListener('click', (e) => {
+  const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-app]');
+  if (btn) store.setApp(btn.dataset.app as AppMode);
+});
 
 els.levels.innerHTML = LEVEL_ORDER.map((id) => {
   const lv = LEVELS[id];
@@ -68,6 +94,49 @@ els.mode.addEventListener('click', (e) => {
 els.undo.addEventListener('click', () => store.undo());
 els.redo.addEventListener('click', () => store.redo());
 els.clear.addEventListener('click', () => store.clear());
+
+els.hints.addEventListener('click', () => store.setHints(!store.hints));
+els.newPlay.addEventListener('click', () => store.newPlay());
+els.autoDig.addEventListener('click', () => {
+  const best = pending ? null : recommended();
+  if (best !== null) store.dig(best);
+});
+els.record.addEventListener('click', (e) => {
+  if ((e.target as HTMLElement).closest('button[data-reset]')) store.resetRecord();
+});
+
+els.simRun.addEventListener('click', () => {
+  if (simulation.running) {
+    simulation.stop();
+    els.simRun.textContent = '시작';
+    els.simResult.insertAdjacentHTML('beforeend', '<p class="note">중단했습니다.</p>');
+    return;
+  }
+  const level = LEVELS[store.level];
+  const games = Number(els.simGames.value);
+  const ok = simulation.start(level.id, games, (res) => {
+    const s = res.stats;
+    const rate = s.games ? (s.won / s.games) * 100 : 0;
+    els.simResult.innerHTML = `<p><strong>${level.name}</strong> ${s.games.toLocaleString()} / ${games.toLocaleString()}판${
+      res.done ? '' : ' 진행 중…'
+    }</p>
+      <ul class="chips">
+        <li><span>모두 찾음</span><strong>${rate.toFixed(1)}%</strong></li>
+        <li><span>평균 획득</span><strong>${s.games ? (s.earned / s.games).toFixed(1) : '0'}</strong></li>
+        <li><span>평균 손익</span><strong class="${s.net >= 0 ? 'pos' : 'neg'}">${
+          s.games ? signed(s.net / s.games, 1) : '0'
+        }</strong></li>
+        <li><span>판당 판 칸</span><strong>${s.games ? (s.digs / s.games).toFixed(1) : '0'}</strong></li>
+      </ul>`;
+    if (res.done) els.simRun.textContent = '시작';
+  });
+  if (ok) {
+    els.simRun.textContent = '중단';
+    els.simResult.innerHTML = '<p class="note">시작하는 중…</p>';
+  } else {
+    els.simResult.innerHTML = '<p class="note">이 브라우저에서는 시뮬레이션을 실행할 수 없습니다.</p>';
+  }
+});
 
 els.legend.innerHTML =
   `<thead><tr><th>파낸 것</th><th>값</th><th>주변 8칸의 꽝</th></tr></thead><tbody>` +
@@ -143,14 +212,15 @@ function buildBoard(): void {
   }
   els.board.innerHTML = html;
   focusIndex = Math.min(focusIndex, lv.width * lv.height - 1);
-  renderedLevel = lv.id;
+  renderedKey = `${store.app}:${lv.id}`;
 }
 
 els.board.addEventListener('click', (e) => {
   const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('button.cell');
   if (!btn) return;
   focusIndex = Number(btn.dataset.i);
-  openSheet(focusIndex);
+  if (isPlay()) store.dig(focusIndex);
+  else openSheet(focusIndex);
 });
 
 els.board.addEventListener('keydown', (e) => {
@@ -170,7 +240,7 @@ els.board.addEventListener('keydown', (e) => {
     moveFocus(next);
     return;
   }
-  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (isPlay() || e.ctrlKey || e.metaKey || e.altKey) return;
   const pick = pickForKey(e.key);
   if (pick) {
     e.preventDefault();
@@ -202,7 +272,7 @@ document.addEventListener('keydown', (e) => {
     }
     return;
   }
-  if (!(e.ctrlKey || e.metaKey)) return;
+  if (isPlay() || !(e.ctrlKey || e.metaKey)) return;
   const k = e.key.toLowerCase();
   if (k === 'z' && !e.shiftKey) {
     e.preventDefault();
@@ -215,8 +285,11 @@ document.addEventListener('keydown', (e) => {
 
 // ---------- 렌더링 ----------
 
+/** 확률을 화면에 보여 줄지: 연습 모드에서는 "확률 보기"를 켰을 때만 */
+const showOdds = () => !isPlay() || store.hints;
+
 function oddsAt(i: number): CellOdds | null {
-  return analysis?.status === 'ok' ? analysis.odds[i] : null;
+  return analysis?.status === 'ok' && showOdds() ? analysis.odds[i] : null;
 }
 
 function recommended(): number | null {
@@ -225,37 +298,59 @@ function recommended(): number | null {
 }
 
 function render(): void {
-  if (renderedLevel !== store.level) buildBoard();
+  if (renderedKey !== `${store.app}:${store.level}`) buildBoard();
+  const play = isPlay();
 
+  els.app.querySelectorAll<HTMLButtonElement>('button').forEach((b) => {
+    b.setAttribute('aria-selected', String(b.dataset.app === store.app));
+  });
   els.levels.querySelectorAll<HTMLButtonElement>('button').forEach((b) => {
     b.setAttribute('aria-pressed', String(b.dataset.level === store.level));
   });
   els.mode.querySelectorAll<HTMLButtonElement>('button').forEach((b) => {
     b.setAttribute('aria-checked', String(b.dataset.mode === store.mode));
   });
+  els.solveActions.hidden = play;
+  els.playActions.hidden = !play;
+  els.playExtra.hidden = !play;
+  els.mode.hidden = play && !store.hints;
   els.undo.disabled = !store.canUndo;
   els.redo.disabled = !store.canRedo;
+  els.hints.setAttribute('aria-pressed', String(store.hints));
+  els.hints.textContent = store.hints ? '확률 숨기기' : '확률 보기';
 
-  const board = store.board;
-  const best = pending ? null : recommended();
-  const flagged = new Set(
-    analysis && analysis.status !== 'ok' && !pending ? analysis.cells : [],
-  );
+  const board = currentBoard();
+  const game = store.game;
+  const ended = play && game.status !== 'playing';
+  const best = pending || ended || !showOdds() ? null : recommended();
+  els.autoDig.disabled = ended || pending || recommended() === null;
+
+  const flagged = new Set(analysis && analysis.status === 'invalid' && !pending ? analysis.cells : []);
   if (analysis?.status === 'invalid' && !pending && store.lastChanged !== null && analysis.cells.length === 0)
     flagged.add(store.lastChanged);
 
   cellButtons().forEach((btn, i) => {
     btn.tabIndex = i === focusIndex ? 0 : -1;
-    btn.classList.toggle('flagged', flagged.has(i));
+    btn.classList.toggle('flagged', !play && flagged.has(i));
     btn.classList.toggle('best', best === i);
-    renderCell(btn, board[i], i);
+    btn.classList.toggle('last', play && game.lastDug === i);
+    btn.disabled = play && (ended || game.dug[i]);
+    if (ended && !game.dug[i]) {
+      // 끝난 판: 안 판 칸의 정답을 흐리게 보여 준다
+      renderCell(btn, revealCell(LEVELS[store.level], game.hidden, i), i);
+      btn.classList.add('ghost');
+    } else {
+      btn.classList.remove('ghost');
+      renderCell(btn, board[i], i);
+    }
   });
 
   renderSummary();
   renderAdvice(best);
   renderMoney();
+  if (play) renderRecord();
   if (sheetIndex !== null) renderSheet(sheetIndex);
-  els.board.classList.toggle('stale', pending);
+  els.board.classList.toggle('stale', pending && showOdds());
 }
 
 function renderCell(btn: HTMLButtonElement, cell: Cell, i: number): void {
@@ -282,7 +377,7 @@ function renderCell(btn: HTMLButtonElement, cell: Cell, i: number): void {
   }
   const o = oddsAt(i);
   if (!o) {
-    btn.innerHTML = `<span class="cell-q">?</span>`;
+    btn.innerHTML = isPlay() ? '' : `<span class="cell-q">?</span>`;
     btn.setAttribute('aria-label', `${where}: 안 판 칸`);
     return;
   }
@@ -305,6 +400,27 @@ function renderCell(btn: HTMLButtonElement, cell: Cell, i: number): void {
 }
 
 function renderSummary(): void {
+  const lv = LEVELS[store.level];
+  if (isPlay()) {
+    const g = store.game;
+    if (g.status === 'lost') {
+      els.summary.innerHTML = `<p class="banner banner-bad">${bombIcon()} 폭탄이 터졌습니다! ${g.earned}루피를 모으고 끝났어요.</p>`;
+      return;
+    }
+    if (g.status === 'won') {
+      els.summary.innerHTML = `<p class="banner banner-good">${gemIcon('gold')} 숨은 루피를 모두 찾았습니다! ${g.earned}루피 획득.</p>`;
+      return;
+    }
+    const dugRupoors = g.hidden.filter((h, i) => h === 'rupoor' && g.dug[i]).length;
+    const rupeesLeft = g.hidden.filter((h, i) => h === 'rupee' && !g.dug[i]).length;
+    els.summary.innerHTML = `<ul class="chips">
+      <li><span>남은 폭탄</span><strong>${lv.bombs}</strong></li>
+      <li><span>남은 도둑루피</span><strong>${lv.rupoors - dugRupoors}</strong></li>
+      <li><span>남은 루피</span><strong>${rupeesLeft}칸</strong></li>
+      <li><span>판 칸</span><strong>${g.dug.filter(Boolean).length}</strong></li>
+    </ul>`;
+    return;
+  }
   if (!analysis || pending) {
     els.summary.innerHTML = `<p class="note">계산 중…</p>`;
     return;
@@ -331,30 +447,58 @@ function renderSummary(): void {
 
 function renderAdvice(best: number | null): void {
   const lv = LEVELS[store.level];
+  if (isPlay()) {
+    if (store.game.status !== 'playing') {
+      els.advice.innerHTML = `<p class="note">새 판을 눌러 다시 도전하세요.</p>`;
+      return;
+    }
+    if (!store.hints) {
+      els.advice.innerHTML = `<p class="note">칸을 누르면 바로 팝니다. 막히면 확률 보기를 켜 보세요.</p>`;
+      return;
+    }
+  }
   if (best === null || analysis?.status !== 'ok') {
     els.advice.innerHTML = '';
     return;
   }
   const o = analysis.odds[best]!;
   const ev = o.expected === null ? '' : ` · 기대값 <strong>${signed(o.expected, 1)}</strong>루피`;
-  const fresh = store.board.every((c) => c.kind === 'unknown');
+  const fresh = currentBoard().every((c) => c.kind === 'unknown');
+  const howTo = isPlay() ? '' : ' 게임에서 판 칸을 눌러 결과를 입력하세요.';
   els.advice.innerHTML = fresh
-    ? `<p>첫 칸은 어디를 파도 폭탄 확률이 <strong>${pct(o.bomb)}</strong>로 같습니다. 이웃이 많은 칸일수록 기대값이 높아서 안쪽 칸을 추천합니다. 게임에서 판 칸을 눌러 결과를 입력하세요.</p>`
+    ? `<p>첫 칸은 어디를 파도 폭탄 확률이 <strong>${pct(o.bomb)}</strong>로 같습니다. 이웃이 많은 칸일수록 기대값이 높아서 안쪽 칸을 추천합니다.${howTo}</p>`
     : `<p><span class="badge-inline">추천</span> <strong>${position(lv, best)}</strong> · 폭탄 <strong>${pct(o.bomb)}</strong>${ev}</p>`;
 }
 
 function renderMoney(): void {
   const lv = LEVELS[store.level];
-  let sum = 0;
-  for (const c of store.board) {
-    if (c.kind === 'rupee') sum += RUPEE_BY_COLOR[c.color].value;
-    else if (c.kind === 'rupoor') sum += RUPOOR_VALUE;
+  let got: number;
+  if (isPlay()) got = store.game.earned;
+  else {
+    let sum = 0;
+    for (const c of store.board) {
+      if (c.kind === 'rupee') sum += RUPEE_BY_COLOR[c.color].value;
+      else if (c.kind === 'rupoor') sum += RUPOOR_VALUE;
+    }
+    got = Math.max(0, sum);
   }
-  const got = Math.max(0, sum);
   const net = got - lv.fee;
   els.money.innerHTML = `<span>획득 <strong>${got}</strong></span>
     <span>참가비 <strong>${lv.fee}</strong></span>
     <span class="${net >= 0 ? 'pos' : 'neg'}">손익 <strong>${signed(net)}</strong>루피</span>`;
+}
+
+function renderRecord(): void {
+  const lv = LEVELS[store.level];
+  const r = store.record;
+  els.record.innerHTML = `<h3>${lv.name} 기록</h3>
+    <ul class="chips">
+      <li><span>판 수</span><strong>${r.games}</strong></li>
+      <li><span>모두 찾음</span><strong>${r.won}</strong></li>
+      <li><span>폭탄</span><strong>${r.lost}</strong></li>
+      <li><span>누적 손익</span><strong class="${r.net >= 0 ? 'pos' : 'neg'}">${signed(r.net)}</strong></li>
+    </ul>
+    ${r.games ? '<button type="button" class="link-btn" data-reset>기록 지우기</button>' : ''}`;
 }
 
 // ---------- 입력 시트 ----------
@@ -401,7 +545,7 @@ function renderSheet(i: number): void {
 
 function solve(): void {
   pending = true;
-  solver.request(store.level, store.board);
+  solver.request(store.level, currentBoard());
   // 결과가 아주 빨리 오므로, 늦을 때만 "계산 중" 상태가 보이도록 렌더링을 미룬다.
   setTimeout(() => {
     if (pending) render();
@@ -409,9 +553,14 @@ function solve(): void {
 }
 
 store.subscribe(() => {
-  // 결과는 보통 수 ms 안에 오므로 그때 그린다. 난이도가 바뀌면 판부터 다시 그린다.
-  if (renderedLevel !== store.level) {
+  // 결과는 보통 수 ms 안에 오므로 그때 그린다. 모드나 난이도가 바뀌면 판부터 다시 그린다.
+  if (renderedKey !== `${store.app}:${store.level}`) {
     analysis = null;
+    if (simulation.running) {
+      simulation.stop();
+      els.simRun.textContent = '시작';
+    }
+    els.simResult.innerHTML = '';
     render();
   }
   solve();
